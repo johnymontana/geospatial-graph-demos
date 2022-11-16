@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <base target="_top" />
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1"
+    />
+
+    <title>Airport Routing With Neo4j</title>
+
+    <!-- TODO: add favicon -->
+    <link
+      rel="shortcut icon"
+      type="image/x-icon"
+      href="docs/images/favicon.ico"
+    />
+
+    <!-- CSS for leaflet and leaflet-geoman plugin -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.2/dist/leaflet.css"
+      integrity="sha256-sA+zWATbFveLLNqWO2gtiw3HL/lh1giY/Inf1BJ0z14="
+      crossorigin=""
+    />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.css"
+    />
+
+    <!-- Load JavaScript for leaflet, leaflet-geoman plugin, turf.js, and neo4j-driver -->
+    <script
+      src="https://unpkg.com/leaflet@1.9.2/dist/leaflet.js"
+      integrity="sha256-o9N1jGDZrf5tS+Ft4gbIK7mYMipq9lqpVJ91xHSyKhg="
+      crossorigin=""
+    ></script>
+    <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    <script src="https://unpkg.com/neo4j-driver"></script>
+
+    <!-- Fixed size map area -->
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      /* .leaflet-container {
+        width: 1000px;
+        height: 1000px;
+      } */
+    </style>
+  </head>
+  <body>
+    <!-- Fixed size map area -->
+    <div id="map" style="width: 100%; height: 100%"></div>
+    <!-- TODO: move this into it's own JavaScript file -->
+    <script>
+      var driver = neo4j.driver(
+        "neo4j://localhost",
+        neo4j.auth.basic("neo4j", "letmein")
+      );
+
+      const map = L.map("map").setView([37.563434, -122.322255], 3);
+
+      const tiles = L.tileLayer(
+        "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {
+          maxZoom: 19,
+          attribution:
+            '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        }
+      ).addTo(map);
+
+      const popup = L.popup();
+      var route = [];
+
+      const fetchAirportsQuery = `
+      MATCH (a:Airport) WHERE a.runways > 2 OR a.iata = "SCL" OR a.iata = "PPT"
+      RETURN a { 
+        iata: a.iata, 
+        latitude: a.location.latitude, 
+        longitude: a.location.longitude
+      } AS airport
+      `;
+
+      var session = driver.session({
+        database: "airports",
+        defaultAccessMode: neo4j.session.READ,
+      });
+
+      session
+        .run(fetchAirportsQuery)
+        .then((result) => {
+          result.records.forEach((record) => {
+            const airport = record.get("airport");
+
+            L.marker([airport.latitude, airport.longitude])
+              .addTo(map)
+              .bindPopup(airport.iata)
+              .on("click", (e) => {
+                console.log(airport.iata);
+                route.push(airport.iata);
+                if (route.length === 2) {
+                  const routeQuery = `
+                  MATCH (source:Airport {iata: $from}), (target:Airport {iata: $to})
+                  CALL gds.shortestPath.dijkstra.stream('routes-weighted', {
+                      sourceNode: source,
+                      targetNode: target,
+                      relationshipWeightProperty: 'distance'
+                  })
+                  YIELD path
+                  RETURN [n IN nodes(path) | [n.location.latitude, n.location.longitude]] AS route
+                      `;
+
+                  var session = driver.session({
+                    database: "airports",
+                    defaultAccessMode: neo4j.session.READ,
+                  });
+                  session
+                    .run(routeQuery, { from: route[0], to: route[1] })
+                    .then((routeResult) => {
+                      routeResult.records.forEach((routeRecord) => {
+                        const routeCoords = routeRecord.get("route");
+                        var polyline =
+                          L.polyline(routeCoords).addTo(map);
+                      });
+                    })
+                    .catch((error) => {
+                      console.log(error);
+                    })
+                    .then(() => {
+                      route = [];
+                      session.close();
+                    });
+                }
+              });
+          });
+        })
+        .catch((error) => {
+          console.log(error);
+        })
+        .then(() => session.close());
+    </script>
+  </body>
+</html>
