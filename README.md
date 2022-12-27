@@ -38,7 +38,7 @@ See [`src/index.html`](src/index.html)
 
 ![](img/linesearch.png)
 
-See ['src/strava.html'](src/strava.html)
+See [`src/strava.html`](src/strava.html)
 
 ![](img/bloom2.png)
 
@@ -82,8 +82,8 @@ SET n:Line
 
 ![](img/airportrouting.png)
 
-See ['src/airports.html'](src/airports.html)
+See [`src/airports.html`](src/airports.html)
 
 ### OpenStreetMap Road Network Routing
 
-See ['src/osm_routing.html'](src/osm_routing.html)
+See [`src/osm_routing.html`](src/osm_routing.html)
