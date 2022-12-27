@@ -216,4 +216,4 @@ See [`src/osm_routing.html`](src/osm_routing.html)
 
 ## Resources
 
-* ["Making Sense Of Geospatial Data With Knowledge Graphs"](https://www.youtube.com/watch?v=-fs8ozxKklQ) Presented at NODES2022. November 2022.
+* ["Making Sense Of Geospatial Data With Knowledge Graphs"](https://www.youtube.com/watch?v=-fs8ozxKklQ) Presented at NODES2022. November 2022. ([Slides](https://dev.neo4j.com/geo-nodes2022))
