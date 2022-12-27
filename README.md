@@ -205,3 +205,7 @@ See [OSMnx Neo4j Experiments repo](https://github.com/johnymontana/neo4j-osmnx-e
 
 
 See [`src/osm_routing.html`](src/osm_routing.html)
+
+## Resources
+
+* ["Making Sense Of Geospatial Data With Knowledge Graphs"](https://www.youtube.com/watch?v=-fs8ozxKklQ) Presented at NODES2022. November 2022.
