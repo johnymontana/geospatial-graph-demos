@@ -18,17 +18,99 @@ These examples use points of interest from the **Daylight Earth Table OpenStreet
 
 ### Radius Distance Search
 
+```Cypher
+WITH point({latitude: $latitude, longitude:$longitude}) AS radiusCenter
+MATCH (p:Point)-[:HAS_GEOMETRY]-(poi:PointOfInterest)-[:HAS_TAGS]->(t:Tags) 
+    WHERE point.distance(p.location, radiusCenter) < $radius
+RETURN p {  latitude: p.location.latitude, 
+            longitude: p.location.longitude, 
+            name: poi.name, 
+            categories: labels(poi),
+            tags: t{.*}
+        } AS point
+```
+
 ![](img/radius_search.png)
 
 See [`src/index.html`](src/index.html)
 
 ### Bounding Box Search
 
+```Cypher
+MATCH (p:Point)-[:HAS_GEOMETRY]-(poi:PointOfInterest)-[:HAS_TAGS]->(t:Tags) 
+    WHERE point.withinBBox(
+        p.location, 
+        point({longitude: $lowerLeftLon, latitude: $lowerLeftLat }), 
+        point({longitude: $upperRightLon, latitude: $upperRightLat}))
+RETURN p {  latitude: p.location.latitude, 
+            longitude: p.location.longitude, 
+            name: poi.name, 
+            categories: labels(poi),
+            tags: t{.*}
+        } AS point
+```
+
 ![](img/bounding_box.png)
 
 See [`src/index.html`](src/index.html)
 
 ### Point In Polygon Search
+
+Index backed point in polygon search can be accomplished by first converting the polygon to a bounding box, using Cypher's `point.withinBBox` predicate function to find points within the bounding box (using database index), and then filtering the results on the client to the polygon bounds. Here, using Turf.js:
+
+```JavaScript
+const polygon = layer.toGeoJSON();
+var bbox = turf.bbox(polygon); // convert polygon to bounding box
+
+// Within Bounding Box Cypher query
+const cypher = `
+    MATCH (p:Point)-[:HAS_GEOMETRY]-(poi:PointOfInterest)-[:HAS_TAGS]->(t:Tags) 
+    WHERE point.withinBBox(
+        p.location, 
+        point({longitude: $lowerLeftLon, latitude: $lowerLeftLat }), 
+        point({longitude: $upperRightLon, latitude: $upperRightLat}))
+    RETURN p { latitude: p.location.latitude, 
+               longitude: p.location.longitude, 
+               name: poi.name, 
+               categories: labels(poi),
+               tags: t{.*}
+            } AS point
+          `;
+
+var session = driver.session({
+    database: "osmpois",
+    defaultAccessMode: neo4j.session.READ,
+});
+
+session
+    .run(cypher, {
+        lowerLeftLat: bbox[1],
+        lowerLeftLon: bbox[0],
+        upperRightLat: bbox[3],
+        upperRightLon: bbox[2],
+    })
+    .then((result) => {
+        const bboxpois = [];
+        result.records.forEach((record) => {
+            const poi = record.get("point");
+            var point = [poi.longitude, poi.latitude];
+            bboxpois.push(point);
+        });
+        // filter results of bouding box query to polygon bounds
+        const poisWithin = turf.pointsWithinPolygon(
+            turf.points(bboxpois),
+            polygon
+        );
+
+        poisWithin.features.forEach((e) => {
+            L.marker([
+                e.geometry.coordinates[1],
+                e.geometry.coordinates[0],
+            ])
+            .addTo(map)
+            .bindPopup("Polygon");
+        })
+```
 
 ![](img/point_in_polygon_search.png)
 
@@ -76,6 +158,17 @@ SET n.coordinates = coords
 SET n:Line
 ```
 
+Radius distance search using line geometry and `any` Cypher list predicate function:
+
+```Cypher
+WITH point({latitude: $latitude, longitude: $longitude}) AS radiusCenter
+MATCH (g:Geometry) 
+    WHERE any(
+        p IN g.coordinates WHERE point.distance(p, radiusCenter) < $radius
+    )
+RETURN [n IN g.coordinates | [n.latitude, n.longitude]] AS route
+```
+
 ## Routing
 
 ### Airport Routing
@@ -85,6 +178,18 @@ Using the [Graph Data Science Neo4j Sandbox](https://dev.neo4j.com/sandbox) data
 ![](img/airportrouting.png)
 
 See [`src/airports.html`](src/airports.html)
+
+Airport routing using `gds.shortestPath.Dijkstra`:
+
+```Cypher
+MATCH (source:Airport {iata: $from}), (target:Airport {iata: $to})
+CALL gds.shortestPath.dijkstra.stream('routes-weighted', {
+    sourceNode: source,
+    targetNode: target,
+    relationshipWeightProperty: 'distance'
+}) YIELD path
+RETURN [n IN nodes(path) | [n.location.latitude, n.location.longitude]] AS route
+```
 
 ### OpenStreetMap Road Network Routing
 
