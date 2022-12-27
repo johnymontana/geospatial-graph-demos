@@ -80,10 +80,17 @@ SET n:Line
 
 ### Airport Routing
 
+Using the [Graph Data Science Neo4j Sandbox](https://dev.neo4j.com/sandbox) dataset.
+
 ![](img/airportrouting.png)
 
 See [`src/airports.html`](src/airports.html)
 
 ### OpenStreetMap Road Network Routing
+
+![](img/osm_data_model.png)
+
+See [OSMnx Neo4j Experiments repo](https://github.com/johnymontana/neo4j-osmnx-experiments) for dataset.
+
 
 See [`src/osm_routing.html`](src/osm_routing.html)
