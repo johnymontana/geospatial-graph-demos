@@ -203,6 +203,14 @@ RETURN [n IN nodes(path) | [n.location.latitude, n.location.longitude]] AS route
 
 See [OSMnx Neo4j Experiments repo](https://github.com/johnymontana/neo4j-osmnx-experiments) for dataset.
 
+```Cypher
+MATCH (source:Intersection {osmid: $from}), (target:Intersection {osmid: $to})
+CALL apoc.algo.dijkstra(source, target, 'ROAD_SEGMENT', 'length')
+YIELD path, weight
+RETURN [n in nodes(path) | [n.location.latitude, n.location.longitude]] AS route
+```
+
+![](img/osm_routing.png)
 
 See [`src/osm_routing.html`](src/osm_routing.html)
 
