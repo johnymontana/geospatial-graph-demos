@@ -3,7 +3,13 @@
 Map-based demos to showcase geospatial functionality in Neo4j.
 
 * Spatial search
+    * Radius distance search
+    * Bouding box search
+    * Point in polygon search
+    * Line geometries
 * Routing
+    * Airport routing (`gds.shortestPath.Dijkstra`)
+    * OpenStreetMap road network routing (`apoc.algo.dijkstra` and `apoc.algo.aStar`)
 
 ## Spatial Search With Neo4j
 
