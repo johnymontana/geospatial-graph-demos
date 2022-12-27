@@ -75,13 +75,13 @@
       var route = [];
 
       const fetchIntersectionsQuery = `
-      MATCH (i:Intersection) WHERE i.street_count > 4
-      RETURN i { 
-        name: i.ref + " " + i.highway, 
-        latitude: i.location.latitude, 
-        longitude: i.location.longitude,
-        osmid: i.osmid
-      } AS intersection
+      MATCH (p:PointOfInterest) WITH p LIMIT 1000
+      RETURN p { 
+        name: p.name, 
+        latitude: p.location.latitude, 
+        longitude: p.location.longitude,
+        osmid: id(p)
+      } AS poi
       `;
 
       var session = driver.session({
@@ -93,17 +93,20 @@
         .run(fetchIntersectionsQuery)
         .then((result) => {
           result.records.forEach((record) => {
-            const intersection = record.get("intersection");
+            const poi = record.get("poi");
 
-            L.marker([intersection.latitude, intersection.longitude])
+            L.marker([poi.latitude, poi.longitude])
               .addTo(map)
-              .bindPopup(intersection.name)
+              .bindPopup(poi.name)
               .on("click", (e) => {
-                console.log(intersection.osmid);
-                route.push(intersection.osmid);
+                console.log(poi.osmid);
+                route.push(poi.osmid);
                 if (route.length === 2) {
                   const routeQuery = `
-                  MATCH (source:Intersection {osmid: $from}), (target:Intersection {osmid: $to})
+                  MATCH (to:PointOfInterest)-[:NEAREST_INTERSECTION]->(source:Intersection) 
+                  WHERE id(to) = toInteger($to)
+                  MATCH (from:PointOfInterest)-[:NEAREST_INTERSECTION]->(target:Intersection)
+                  WHERE id(from) = toInteger($from)
                   CALL apoc.algo.dijkstra(source, target, 'ROAD_SEGMENT', 'length')
                   YIELD path, weight
                   RETURN [n in nodes(path) | [n.location.latitude, n.location.longitude]] AS route
