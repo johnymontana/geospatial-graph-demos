@@ -2,12 +2,13 @@
 
 Map-based demos to showcase geospatial functionality in Neo4j.
 
-    * Spatial search
-    * Routing
+* Spatial search
+* Routing
 
 ## Spatial Search With Neo4j
 
 ![](img/spatialsearch.png)
+
 See [`src/index.html`](src/index.html)
 
 These examples use points of interest from the **Daylight Earth Table OpenStreetMap** distribution. [This Python notebook](https://github.com/johnymontana/daylight-earth-graph/blob/main/POI_import.ipynb) has the code to import this data into Neo4j.
@@ -24,16 +25,19 @@ See [`src/index.html`](src/index.html)
 ### Bounding Box Search
 
 ![](img/bounding_box.png)
+
 See [`src/index.html`](src/index.html)
 
 ### Point In Polygon Search
 
 ![](img/point_in_polygon_search.png)
+
 See [`src/index.html`](src/index.html)
 
 ### Line Geometry Search
 
 ![](img/linesearch.png)
+
 See ['src/strava.html'](src/strava.html)
 
 ![](img/bloom2.png)
