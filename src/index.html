@@ -132,6 +132,10 @@
         } else if (shape === "Rectangle") {
           const bbox = layer.toGeoJSON();
           var turfbbox = turf.polygon(bbox);
+          console.log("lowerLeftLat: ", bbox.geometry.coordinates[0][0][1])
+          console.log("lowerLeftLon", bbox.geometry.coordinates[0][0][0])
+          console.log("upper right lat", bbox.geometry.coordinates[0][2][1])
+          console.log("upper right lon", bbox.geometry.coordinates[0][2][0])
 
           const cypher = `
           MATCH (p:Point)-[:HAS_GEOMETRY]-(poi:PointOfInterest)-[:HAS_TAGS]->(t:Tags) 
