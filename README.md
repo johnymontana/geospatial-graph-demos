@@ -214,6 +214,8 @@ RETURN [n in nodes(path) | [n.location.latitude, n.location.longitude]] AS route
 
 See [`src/osm_routing.html`](src/osm_routing.html)
 
+![](img/data_model_addresses.png)
+
 To enable searching for points of interest and addresses a full text index can be used:
 
 ```Cypher
