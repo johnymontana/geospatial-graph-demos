@@ -214,6 +214,32 @@ RETURN [n in nodes(path) | [n.location.latitude, n.location.longitude]] AS route
 
 See [`src/osm_routing.html`](src/osm_routing.html)
 
+To enable searching for points of interest and addresses a full text index can be used:
+
+```Cypher
+CREATE FULLTEXT INDEX search_index IF NOT EXISTS FOR (p:PointOfInterest|Address) ON EACH [p.name, p.full_address] 
+```
+
+```
+CALL db.index.fulltext.queryNodes("search_index", $searchString) 
+YIELD node, score
+RETURN coalesce(node.name, node.full_address) AS value, score, labels(node)[0] AS label, node.id AS id
+ORDER BY score DESC LIMIT 25
+```
+
+
+```Cypher
+MATCH (to {id: $dest})-[:NEAREST_INTERSECTION]->(source:Intersection) 
+MATCH (from {id: $source})-[:NEAREST_INTERSECTION]->(target:Intersection)
+CALL apoc.algo.dijkstra(source, target, 'ROAD_SEGMENT', 'length')
+YIELD path, weight
+RETURN [n in nodes(path) | [n.location.latitude, n.location.longitude]] AS route
+```
+
+![](img/address_routing.png)
+
+See `src/address_routing.png`.
+
 ## Resources
 
 * ["Making Sense Of Geospatial Data With Knowledge Graphs"](https://www.youtube.com/watch?v=-fs8ozxKklQ) Presented at NODES2022. November 2022. ([Slides](https://dev.neo4j.com/geo-nodes2022))

@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <base target="_top" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>OpenStreetMap Routing With Neo4j</title>
+
+    <!-- TODO: add favicon -->
+    <link
+      rel="shortcut icon"
+      type="image/x-icon"
+      href="docs/images/favicon.ico"
+    />
+
+    <!-- CSS for leaflet and leaflet-geoman plugin -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.2/dist/leaflet.css"
+      integrity="sha256-sA+zWATbFveLLNqWO2gtiw3HL/lh1giY/Inf1BJ0z14="
+      crossorigin=""
+    />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.css"
+    />
+
+    <!-- Load JavaScript for leaflet, leaflet-geoman plugin, turf.js, and neo4j-driver -->
+    <script
+      src="https://unpkg.com/leaflet@1.9.2/dist/leaflet.js"
+      integrity="sha256-o9N1jGDZrf5tS+Ft4gbIK7mYMipq9lqpVJ91xHSyKhg="
+      crossorigin=""
+    ></script>
+    <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    <script src="https://unpkg.com/neo4j-driver"></script>
+
+    <!-- Fixed size map area -->
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      /* .leaflet-container {
+        width: 1000px;
+        height: 1000px;
+      } */
+
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        font: 16px Arial;
+      }
+      .autocomplete {
+        /*the container must be positioned relative:*/
+        position: relative;
+        display: inline-block;
+      }
+      input {
+        border: 1px solid transparent;
+        background-color: #f1f1f1;
+        padding: 10px;
+        font-size: 16px;
+      }
+      input[type="text"] {
+        background-color: #f1f1f1;
+        width: 100%;
+      }
+      input[type="submit"] {
+        background-color: DodgerBlue;
+        color: #fff;
+      }
+      .autocomplete-items {
+        position: absolute;
+        border: 1px solid #d4d4d4;
+        border-bottom: none;
+        border-top: none;
+        z-index: 999;
+        /*position the autocomplete items to be the same width as the container:*/
+        top: 100%;
+        left: 0;
+        right: 0;
+      }
+      .autocomplete-items div {
+        padding: 10px;
+        cursor: pointer;
+        background-color: #fff;
+        border-bottom: 1px solid #d4d4d4;
+      }
+      .autocomplete-items div:hover {
+        /*when hovering an item:*/
+        background-color: #e9e9e9;
+      }
+      .autocomplete-active {
+        /*when navigating through the items using the arrow keys:*/
+        background-color: DodgerBlue !important;
+        color: #ffffff;
+      }
+    </style>
+  </head>
+  <body>
+    <form autocomplete="off" action="/action_page.php">
+      <div class="autocomplete" style="width: 300px">
+        <input id="source" type="text" name="source" placeholder="From" />
+
+        <input id="dest" type="text" name="dest" placeholder="To" />
+      </div>
+      <input id="routeButton" type="submit" value="Route" />
+    </form>
+
+    <!-- Fixed size map area -->
+    <div id="map" style="width: 100%; height: 100%"></div>
+    <!-- TODO: move this into it's own JavaScript file -->
+    <!-- TODO: read credentials from env vars -->
+
+    <script>
+      var driver = neo4j.driver(
+        "neo4j://localhost",
+        neo4j.auth.basic("neo4j", "letmeinnow")
+      );
+
+      var route = [];
+
+      function autocomplete(inp) {
+        /*the autocomplete function takes two arguments,
+  the text field element and an array of possible autocompleted values:*/
+        var currentFocus;
+        /*execute a function when someone writes in the text field:*/
+        inp.addEventListener("input", function (e) {
+          var a,
+            b,
+            i,
+            val = this.value;
+          /*close any already open lists of autocompleted values*/
+          closeAllLists();
+          if (!val) {
+            return false;
+          }
+
+          if (val.length < 4) {
+            return false;
+          }
+
+          currentFocus = -1;
+          /*create a DIV element that will contain the items (values):*/
+          a = document.createElement("DIV");
+          a.setAttribute("id", this.id + "autocomplete-list");
+          a.setAttribute("class", "autocomplete-items");
+          /*append the DIV element as a child of the autocomplete container:*/
+          this.parentNode.appendChild(a);
+          /*for each item in the array...*/
+
+          // TODO: query for address (or POI) from database
+          // iterate over matching results
+
+          var session = driver.session();
+
+          session
+            .run(
+              `
+              CALL 
+                db.index.fulltext.queryNodes("search_index", $searchString) 
+                YIELD node, score
+              RETURN coalesce(node.name, node.full_address) AS value, score, labels(node)[0] AS label, node.id AS id
+              ORDER BY score DESC LIMIT 25
+          
+          `,
+              { searchString: inp.value }
+            )
+            .then((result) => {
+              console.log(result);
+              result.records.forEach((record) => {
+                const address = record.get("value");
+                const nodeId = record.get("id")
+
+                b = document.createElement("DIV");
+                /*make the matching letters bold:*/
+                b.innerHTML = address;
+                //b.dataset.id = nodeId
+                /*insert a input field that will hold the current array item's value:*/
+                b.innerHTML += "<input data-id='" + nodeId + "' type='hidden' value='" + address + "'>";
+                /*execute a function when someone clicks on the item value (DIV element):*/
+                b.addEventListener("click", function (e) {
+                  /*insert the value for the autocomplete text field:*/
+                  inp.value = this.getElementsByTagName("input")[0].value;
+                  inp.dataset.id = this.getElementsByTagName("input")[0].dataset.id
+                  //inp.value = this.getElementsByTagName("input")[0].dataset.id;
+                  /*close the list of autocompleted values,
+              (or any other open lists of autocompleted values:*/
+                  closeAllLists();
+                });
+                a.appendChild(b);
+              });
+            });
+        });
+        /*execute a function presses a key on the keyboard:*/
+        inp.addEventListener("keydown", function (e) {
+          var x = document.getElementById(this.id + "autocomplete-list");
+          if (x) x = x.getElementsByTagName("div");
+          if (e.keyCode == 40) {
+            /*If the arrow DOWN key is pressed,
+        increase the currentFocus variable:*/
+            currentFocus++;
+            /*and and make the current item more visible:*/
+            addActive(x);
+          } else if (e.keyCode == 38) {
+            //up
+            /*If the arrow UP key is pressed,
+        decrease the currentFocus variable:*/
+            currentFocus--;
+            /*and and make the current item more visible:*/
+            addActive(x);
+          } else if (e.keyCode == 13) {
+            /*If the ENTER key is pressed, prevent the form from being submitted,*/
+            e.preventDefault();
+            if (currentFocus > -1) {
+              /*and simulate a click on the "active" item:*/
+              if (x) x[currentFocus].click();
+            }
+          }
+        });
+        function addActive(x) {
+          /*a function to classify an item as "active":*/
+          if (!x) return false;
+          /*start by removing the "active" class on all items:*/
+          removeActive(x);
+          if (currentFocus >= x.length) currentFocus = 0;
+          if (currentFocus < 0) currentFocus = x.length - 1;
+          /*add class "autocomplete-active":*/
+          x[currentFocus].classList.add("autocomplete-active");
+        }
+        function removeActive(x) {
+          /*a function to remove the "active" class from all autocomplete items:*/
+          for (var i = 0; i < x.length; i++) {
+            x[i].classList.remove("autocomplete-active");
+          }
+        }
+        function closeAllLists(elmnt) {
+          /*close all autocomplete lists in the document,
+    except the one passed as an argument:*/
+          var x = document.getElementsByClassName("autocomplete-items");
+          for (var i = 0; i < x.length; i++) {
+            if (elmnt != x[i] && elmnt != inp) {
+              x[i].parentNode.removeChild(x[i]);
+            }
+          }
+        }
+        /*execute a function when someone clicks in the document:*/
+        document.addEventListener("click", function (e) {
+          closeAllLists(e.target);
+        });
+      }
+      autocomplete(document.getElementById("source"));
+      autocomplete(document.getElementById("dest"));
+
+      document.getElementById("routeButton").addEventListener("click", (e) => {
+        e.preventDefault();
+        getRoute({
+          //source: document.getElementById("source").value,
+          source: document.getElementById("source").dataset.id,
+          dest: document.getElementById("dest").dataset.id
+          //dest: document.getElementById("dest").value,
+        });
+      });
+    </script>
+
+    <script>
+      const map = L.map("map", { zoomControl: false }).setView(
+        [37.563434, -122.322255],
+        13
+      );
+
+      L.control
+        .zoom({
+          position: "bottomright",
+        })
+        .addTo(map);
+
+      const tiles = L.tileLayer(
+        "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {
+          maxZoom: 19,
+          attribution:
+            '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        }
+      ).addTo(map);
+
+      const popup = L.popup();
+      var route = [];
+
+      const getRoute = ({ source, dest }) => {
+        var session = driver.session({
+          database: "neo4j",
+          defaultAccessMode: neo4j.session.READ,
+        });
+
+        const routeQuery = `
+                  MATCH (to {id: $dest})-[:NEAREST_INTERSECTION]->(source:Intersection) 
+                  MATCH (from {id: $source})-[:NEAREST_INTERSECTION]->(target:Intersection)
+                  CALL apoc.algo.dijkstra(source, target, 'ROAD_SEGMENT', 'length')
+                  YIELD path, weight
+                  RETURN [n in nodes(path) | [n.location.latitude, n.location.longitude]] AS route
+                      `;
+
+        var session = driver.session({
+          database: "neo4j",
+          defaultAccessMode: neo4j.session.READ,
+        });
+
+        session
+          .run(routeQuery, { source, dest })
+          .then((routeResult) => {
+            routeResult.records.forEach((routeRecord) => {
+              const routeCoords = routeRecord.get("route");
+              var polyline = L.polyline(routeCoords)
+                .setStyle({ color: "red", weight: 7 })
+                .addTo(map);
+
+                console.log(routeCoords[0])
+                console.log(routeCoords[routeCoords.length-1])
+
+                var corner1 = L.latLng(routeCoords[0][0], routeCoords[0][1]),
+                corner2 = L.latLng(routeCoords[routeCoords.length-1][0], routeCoords[routeCoords.length-1][1])
+                
+                L.marker(corner1).addTo(map);
+                L.marker(corner2).addTo(map);
+                
+                bounds = L.latLngBounds(corner1, corner2);
+
+
+              map.panInsideBounds(bounds)
+            });
+          })
+          .catch((error) => {
+            console.log(error);
+          })
+          .then(() => {
+            route = [];
+            session.close();
+          });
+      };
+    </script>
+  </body>
+</html>
